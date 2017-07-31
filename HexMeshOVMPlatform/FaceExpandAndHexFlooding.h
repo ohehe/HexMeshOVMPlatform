@@ -176,6 +176,8 @@ public:
 
 	int SFaceSetSeeking_Simple(bool is_support_halfface); 
 
+	int SFaceSetSeeking_Complex(bool is_support_halfface,const std::vector<SingularEdge>& vector_se);
+
 	//Ìî³äÖÖ×ÓÇøÓò
 	void HexCellFlooding(const unsigned char from_oriention, OpenVolumeMesh::CellPropertyT<bool>& boolCellChecked,const CellHandle& initHandle=NULL);
 

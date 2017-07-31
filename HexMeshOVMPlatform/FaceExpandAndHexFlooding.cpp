@@ -117,9 +117,35 @@ int BaseComplexSetFiller::SFaceSetSeeking(bool is_support_halfface) {
 	}
 	return count_sface;
 }
+//******************************************
+//1.对所有奇异边的邻接面延伸。
+//	(1)保存能延伸到另一条奇异边的分割面部分,保存该奇异边集合。
+//  (2)保存能直接延伸到边界且不与当前分割面集合相交的分割面部分，保存该奇异边集合。
+//	(3)处理剩下的延伸面，到达当前分割面集合中单元停止，保存入分割面集合。
+int BaseComplexSetFiller::SFaceSetSeeking_Complex(bool is_support_halfface,const std::vector<SingularEdge>& vector_se) {
+	uint64_t count_step_direct = 0u;
+	uint64_t count_step_to_bdy = 0u;
+	uint64_t count_step_to_existing_sf = 0u;
 
+	//获取标记
+	OpenVolumeMesh::EdgePropertyT<int> intEProp_sigular = this->mesh->request_edge_property<int>("SingularEdgeIndex");
+
+	//TODO:step-1
+	for (OpenVolumeMesh::EdgePropertyT<int>::iterator e_p_iter = intEProp_sigular.begin(); e_p_iter != intEProp_sigular.end(); ++e_p_iter) {
+		if (!(*e_p_iter)) {//非奇异边跳过
+			continue;
+		}
+		
+
+	}
+	//TODO:step-2
+
+	//TODO:step-3
+	return 0;
+}
 int BaseComplexSetFiller::SFaceSetSeeking_Simple(bool is_support_halfface)
 {
+	
 	uint64_t count_n = 0;
 	if (!is_support_halfface) { return 0; }
 
