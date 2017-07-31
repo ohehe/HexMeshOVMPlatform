@@ -601,6 +601,10 @@ void BaseComplexSetFiller::OneBaseComplexFilling(std::vector<SingularEdge> se_ve
 	}
 	std::cout << " " << count_cell;
 
+
+	//TODO:带上标记
+	bool is_have_point[250] = {false};
+
 	/*1.迭代每条边
 	2.选取每条边的终结点之一
 	3.查找哪个bc包含该节点，将该bc起始单元确定
@@ -620,8 +624,10 @@ void BaseComplexSetFiller::OneBaseComplexFilling(std::vector<SingularEdge> se_ve
 		//找邻接cell单元
 		(*se_iter).FindCellAroundSE();
 		
+
+		int coi = 0;
 		for (std::set<BaseComplex, compare_BaseComplex>::iterator bc_iter = baseComplexSet.begin();
-			bc_iter != baseComplexSet.end(); ++bc_iter) {
+			bc_iter != baseComplexSet.end(); ++bc_iter,++coi) {
 			//是否存在该cell
 			bool cell_existing = false;
 			
@@ -632,8 +638,11 @@ void BaseComplexSetFiller::OneBaseComplexFilling(std::vector<SingularEdge> se_ve
 			if (bc.get_origination_cell().idx() > -1) {
 				continue;
 			}
-
-		
+			std::set<VertexHandle, compare_OVM> set_ = bc.getVes();
+			
+			if ((set_.find((*se_iter).Get_end_point(false)) != set_.end()) || (set_.find((*se_iter).Get_end_point(true)) != set_.end())) {
+				is_have_point[coi] = true;
+			}
 
 			std::set<VertexHandle, compare_OVM> outter_ve_set = bc.getVes();
 			std::set<CellHandle, compare_OVM> bc_cell_set = bc.getCellSet();
@@ -649,10 +658,10 @@ void BaseComplexSetFiller::OneBaseComplexFilling(std::vector<SingularEdge> se_ve
 			for (int v_index = 0; v_index < 2; ++v_index) {
 				if (outter_ve_set.find(v1_v2_arr[v_index]) != outter_ve_set.end()) {
 					ve_temp = v1_v2_arr[v_index];
-			
+					
 					std::set<CellHandle, compare_OVM_For_Singular> set_cell =(*se_iter).Get_cell_aroud_set(!v_index);
 					
-					if ((bc.Idx() == 10)) {
+					if ((bc.Idx() == 10)||(bc.Idx() == 22)||(bc.Idx() == 28)) {
 						std::cout << "";
 					}
 					//遍历起始点邻接单元 对单元确定位置
@@ -660,6 +669,7 @@ void BaseComplexSetFiller::OneBaseComplexFilling(std::vector<SingularEdge> se_ve
 						orig_cell_iter != set_cell.end(); ++orig_cell_iter) {
 						//找到该单元
 						if (bc.find_cell(*orig_cell_iter)) {
+							
 							//查找对应的8合并起始位置
 							bc.set_origination_cell(*orig_cell_iter);
 
@@ -690,19 +700,25 @@ void BaseComplexSetFiller::OneBaseComplexFilling(std::vector<SingularEdge> se_ve
 	}
 
 	//检测一下
+	int a = 0;
 	std::set<BaseComplex, compare_BaseComplex>::iterator iter; 
 	for (iter = baseComplexSet.begin(); iter != baseComplexSet.end(); iter++) {
 		const BaseComplex &bc_o = const_cast<BaseComplex&>(*iter);
 		BaseComplex  &bc = const_cast<BaseComplex&>(bc_o);
 		if (bc.get_origination_cell().idx() == -1) {
-			break;
+			a++; continue;
 		}
 		if (bc.get_origination_index() == 8) {
-			break;
+			a++; continue;
+
 		}
 	}
 	if (iter != baseComplexSet.end()) {
 		std::cout << "";
+	}
+	int b = 0;
+	for (int i = 0; i < baseComplexSet.size(); ++i) {
+		if (is_have_point[i]) b++;
 	}
 	std::cout << "gaodingo";
 }

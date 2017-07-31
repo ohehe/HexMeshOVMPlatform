@@ -107,6 +107,7 @@ std::vector< std::vector<BC_8> > BaseComplexSimplify::HandleBCSimplify(simplify_
 			std::vector<BC_8> vector_bc_8;
 			int dsada = (*bc_all_iter).Idx();
 			
+			if (bc.get_origination_cell().idx() == -1)continue; 
 			HandlerBCSimplify_OneBC(bc,
 				boolVexChecked,
 				boolCellChecked,

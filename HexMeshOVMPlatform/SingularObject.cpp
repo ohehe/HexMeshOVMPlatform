@@ -897,12 +897,12 @@ std::set<CellHandle, compare_OVM_For_Singular> SingularEdge::FindCellAroundSE()
 		this->cells_around_set_p2.insert(mesh->incident_cell(*iter));
 	}*/
 	//TODO:临时改为直接把o_ver邻接cell全加入
-	std::pair<OpenVolumeMesh::VertexCellIter, OpenVolumeMesh::VertexCellIter> vc_pair = mesh->vertex_cells(this->endPoint_1);
+	std::pair<OpenVolumeMesh::VertexCellIter, OpenVolumeMesh::VertexCellIter> vc_pair = mesh->vertex_cells(ver_vector[0]);
 	for (OpenVolumeMesh::VertexCellIter vc_iter = vc_pair.first; vc_iter != vc_pair.second; ++vc_iter) {
 		cells_around_set_p1.insert(*vc_iter);
 	}
-	vc_pair = mesh->vertex_cells(this->endPoint_2);
-	for (OpenVolumeMesh::VertexCellIter vc_iter = vc_pair.first; vc_iter != vc_pair.second; ++vc_iter) {
+	std::pair<OpenVolumeMesh::VertexCellIter, OpenVolumeMesh::VertexCellIter> vc_pair1 = mesh->vertex_cells(ver_vector[ver_vector.size()-1]);
+	for (OpenVolumeMesh::VertexCellIter vc_iter = vc_pair1.first; vc_iter != vc_pair1.second; ++vc_iter) {
 		cells_around_set_p2.insert(*vc_iter);
 	}
 	return this->cells_around_set_p1;
