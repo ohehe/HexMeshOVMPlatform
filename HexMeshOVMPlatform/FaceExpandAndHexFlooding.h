@@ -166,6 +166,12 @@ private:
 		OpenVolumeMesh::HalfEdgePropertyT<bool> &boolHEProp_Checked, OpenVolumeMesh::HalfFacePropertyT<bool> &boolHFProp_Checked,
 		OpenVolumeMesh::EdgePropertyT<int> &intEProp_sigular);
 public:
+	enum Extend_Pattern
+	{
+		E_TO_E,
+		E_TO_BDY,
+		E_TO_F
+	};
 	//半分割面集合
 	std::set<HalfFaceHandle, compare_OVM> hf_all_set;
 	//分割面集合
@@ -177,6 +183,9 @@ public:
 	int SFaceSetSeeking_Simple(bool is_support_halfface); 
 
 	int SFaceSetSeeking_Complex(bool is_support_halfface,const std::vector<SingularEdge>& vector_se);
+
+	std::pair<uint32_t,EdgeHandle> GetSFaceExtend_Complex(Extend_Pattern ex_p，, const HalfEdgeHandle& he, const HalfFaceHandle& hf, 
+		OpenVolumeMesh::EdgePropertyT<int> &intEProp_sigular, std::set<FaceHandle, compare_OVM>& parting_planes_set, std::set<EdgeHandle, compare_OVM>& edge_in_face_set);
 
 	//填充种子区域
 	void HexCellFlooding(const unsigned char from_oriention, OpenVolumeMesh::CellPropertyT<bool>& boolCellChecked,const CellHandle& initHandle=NULL);

@@ -131,17 +131,86 @@ int BaseComplexSetFiller::SFaceSetSeeking_Complex(bool is_support_halfface,const
 	OpenVolumeMesh::EdgePropertyT<int> intEProp_sigular = this->mesh->request_edge_property<int>("SingularEdgeIndex");
 
 	//TODO:step-1
-	for (OpenVolumeMesh::EdgePropertyT<int>::iterator e_p_iter = intEProp_sigular.begin(); e_p_iter != intEProp_sigular.end(); ++e_p_iter) {
-		if (!(*e_p_iter)) {//非奇异边跳过
+	std::pair<OpenVolumeMesh::HalfEdgeIter, OpenVolumeMesh::HalfEdgeIter> he_pair = mesh->halfedges();
+	for (OpenVolumeMesh::HalfEdgeIter he_iter = he_pair.first; he_iter != he_pair.second; ++he_iter) {
+		if (!intEProp_sigular[mesh->edge_handle(*he_iter)]) {//非奇异边跳过
 			continue;
 		}
-		
-
+		//对奇异边延伸面处理
+		std::pair<OpenVolumeMesh::HalfEdgeHalfFaceIter, OpenVolumeMesh::HalfEdgeHalfFaceIter> he_hf_pair = mesh->halfedge_halffaces(*he_iter);
+		for (OpenVolumeMesh::HalfEdgeHalfFaceIter he_hf_iter = he_hf_pair.first; he_hf_iter != he_hf_pair.second; ++he_hf_iter) {
+			if()
+			count_step_direct += GetSFaceExtend_Simple(*he_iter, *he_hf_iter, intEProp_sigular);
+		}
 	}
-	//TODO:step-2
+	//TODO:step-2 对不同的模式再跑两次
 
 	//TODO:step-3
 	return 0;
+}
+
+//*****************************
+//可以分模式的面延伸处理
+std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Extend_Pattern ex_p,const HalfEdgeHandle& he, const HalfFaceHandle& hf, 
+	OpenVolumeMesh::EdgePropertyT<int> &intEProp_sigular,std::set<FaceHandle,compare_OVM>& parting_planes_set,std::set<EdgeHandle,compare_OVM>& edge_in_face_set) {
+	//依据选择的拓展模式设置终止条件
+	bool is_ending = false;
+	
+	//暂时变量
+	HalfEdgeHandle now_he_handle = he;
+	HalfFaceHandle now_hf_handle = hf;
+	EdgeHandle now_edge_handle;
+	HalfFaceHandle hf_h_temp[4];
+
+	//为奇异边到奇异边的情况的暂存集合
+	std::set<FaceHandle, compare_OVM> planes_set_E_TO_E;
+	
+
+	do{
+		now_he_handle = mesh->next_halfedge_in_halfface(now_he_handle, now_hf_handle);
+		now_he_handle = mesh->next_halfedge_in_halfface(now_he_handle, now_hf_handle);
+
+		now_edge_handle = mesh->edge_handle(now_he_handle);
+		//判断终止情况
+		if (ex_p == Extend_Pattern::E_TO_E) {
+			OpenVolumeMesh::OpenVolumeMeshEdge edge = mesh->edge(now_edge_handle);
+			if (intEProp_sigular[now_edge_handle]) {//到达奇异边
+				//对之前暂存集合装填到分割面集合
+				for (std::set<FaceHandle, compare_OVM>::iterator f_iter = planes_set_E_TO_E.begin(); f_iter != planes_set_E_TO_E.end(); ++f_iter) {
+					parting_planes_set.insert(*f_iter);
+					const std::vector<HalfEdgeHandle> c_f_handle_vector = mesh->face(*f_iter).halfedges();
+					for (std::vector<HalfEdgeHandle>::const_iterator c_hf_iter = c_f_handle_vector.begin(); c_hf_iter != c_f_handle_vector.end(); ++c_hf_iter) {
+						edge_in_face_set.insert(mesh->edge_handle(*c_hf_iter));
+					}
+				}
+				
+				is_ending = true;
+			}else if (mesh->is_boundary(edge.from_vertex()) && mesh->is_boundary(edge.to_vertex())) {//先到达边界，清空暂存集合
+				planes_set_E_TO_E.swap(std::set<FaceHandle, compare_OVM>());
+				is_ending = true;
+			}
+			else {
+				//未到边界也未到奇异边部分 加入新的成员到集合中
+				planes_set_E_TO_E.insert(mesh->face_handle(now_hf_handle));
+
+
+			}
+
+
+		}
+		else if (ex_p == Extend_Pattern::E_TO_BDY) {
+			OpenVolumeMesh::OpenVolumeMeshEdge edge = mesh->edge(now_edge_handle);
+			if (mesh->is_boundary(edge.from_vertex()) && mesh->is_boundary(edge.to_vertex())) {
+				is_ending = true;
+			}
+		}
+		else if (ex_p == Extend_Pattern::E_TO_F) {
+			if (edge_in_face_set.find(now_edge_handle) != edge_in_face_set.end()) {//到达另一条奇异边
+				is_ending = true;
+			}
+		}
+
+	} while (!is_ending);
 }
 int BaseComplexSetFiller::SFaceSetSeeking_Simple(bool is_support_halfface)
 {
