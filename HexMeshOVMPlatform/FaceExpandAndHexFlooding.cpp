@@ -155,28 +155,46 @@ std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Ext
 	OpenVolumeMesh::EdgePropertyT<int> &intEProp_sigular,std::set<FaceHandle,compare_OVM>& parting_planes_set,std::set<EdgeHandle,compare_OVM>& edge_in_face_set) {
 	//依据选择的拓展模式设置终止条件
 	bool is_ending = false;
-	
 	//暂时变量
 	HalfEdgeHandle now_he_handle = he;
 	HalfFaceHandle now_hf_handle = hf;
 	EdgeHandle now_edge_handle;
 	HalfFaceHandle hf_h_temp[4];
+	Edge now_edge_real = mesh->edge(mesh->edge_handle(he));
 
 	//为奇异边到奇异边的情况的暂存集合
-	std::set<FaceHandle, compare_OVM> planes_set_E_TO_E;
+	std::set<FaceHandle, compare_OVM> planes_set_E_TO_;
 	
-
+	
+	
 	do{
+		
 		now_he_handle = mesh->next_halfedge_in_halfface(now_he_handle, now_hf_handle);
 		now_he_handle = mesh->next_halfedge_in_halfface(now_he_handle, now_hf_handle);
 
 		now_edge_handle = mesh->edge_handle(now_he_handle);
-		//判断终止情况
+		now_edge_real = mesh->edge(now_edge_handle);
+		//判断终止情况 (到达边界)
+		
+
+		//判断当前面是否遍历过 遍历过终止(存储之前的集合)
+		if (parting_planes_set.find(mesh->face_handle(now_hf_handle)) != parting_planes_set.end()) {
+			for (std::set<FaceHandle, compare_OVM>::iterator f_iter = planes_set_E_TO_.begin(); f_iter != planes_set_E_TO_.end(); ++f_iter) {
+				parting_planes_set.insert(*f_iter);
+				const std::vector<HalfEdgeHandle> c_f_handle_vector = mesh->face(*f_iter).halfedges();
+				for (std::vector<HalfEdgeHandle>::const_iterator c_hf_iter = c_f_handle_vector.begin(); c_hf_iter != c_f_handle_vector.end(); ++c_hf_iter) {
+					edge_in_face_set.insert(mesh->edge_handle(*c_hf_iter));
+				}
+			}
+			is_ending = true;
+			break;
+		}
+
 		if (ex_p == Extend_Pattern::E_TO_E) {
-			OpenVolumeMesh::OpenVolumeMeshEdge edge = mesh->edge(now_edge_handle);
+			
 			if (intEProp_sigular[now_edge_handle]) {//到达奇异边
 				//对之前暂存集合装填到分割面集合
-				for (std::set<FaceHandle, compare_OVM>::iterator f_iter = planes_set_E_TO_E.begin(); f_iter != planes_set_E_TO_E.end(); ++f_iter) {
+				for (std::set<FaceHandle, compare_OVM>::iterator f_iter = planes_set_E_TO_.begin(); f_iter != planes_set_E_TO_.end(); ++f_iter) {
 					parting_planes_set.insert(*f_iter);
 					const std::vector<HalfEdgeHandle> c_f_handle_vector = mesh->face(*f_iter).halfedges();
 					for (std::vector<HalfEdgeHandle>::const_iterator c_hf_iter = c_f_handle_vector.begin(); c_hf_iter != c_f_handle_vector.end(); ++c_hf_iter) {
@@ -185,30 +203,45 @@ std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Ext
 				}
 				
 				is_ending = true;
-			}else if (mesh->is_boundary(edge.from_vertex()) && mesh->is_boundary(edge.to_vertex())) {//先到达边界，清空暂存集合
-				planes_set_E_TO_E.swap(std::set<FaceHandle, compare_OVM>());
+			}else if (mesh->is_boundary(now_edge_real.from_vertex()) && mesh->is_boundary(now_edge_real.to_vertex())) {//先到达边界，清空暂存集合
+
+				//判断当前面是否遍历过 遍历过终止(存储之前的集合)
+				if (parting_planes_set.find(mesh->face_handle(now_hf_handle)) != parting_planes_set.end()) {
+					is_ending = true;
+					break;
+				}
+
+				planes_set_E_TO_.swap(std::set<FaceHandle, compare_OVM>());
+
 				is_ending = true;
 			}
 			else {
 				//未到边界也未到奇异边部分 加入新的成员到集合中
-				planes_set_E_TO_E.insert(mesh->face_handle(now_hf_handle));
-
+				planes_set_E_TO_.insert(mesh->face_handle(now_hf_handle));
 
 			}
 
-
 		}
-		else if (ex_p == Extend_Pattern::E_TO_BDY) {
-			OpenVolumeMesh::OpenVolumeMeshEdge edge = mesh->edge(now_edge_handle);
-			if (mesh->is_boundary(edge.from_vertex()) && mesh->is_boundary(edge.to_vertex())) {
+		else if (ex_p == Extend_Pattern::E_TO_BDY) {//先到达边界
+			
+
+			if (mesh->is_boundary(now_edge_real.from_vertex()) && mesh->is_boundary(now_edge_real.to_vertex())) {//先到达边界
 				is_ending = true;
 			}
-		}
-		else if (ex_p == Extend_Pattern::E_TO_F) {
-			if (edge_in_face_set.find(now_edge_handle) != edge_in_face_set.end()) {//到达另一条奇异边
-				is_ending = true;
+			else if(edge_in_face_set.find()){//先到达分割面
+
 			}
+			
 		}
+		else if (ex_p == Extend_Pattern::E_TO_F) {//到达另一条分割面
+			if (edge_in_face_set.find(now_edge_handle) != edge_in_face_set.end()) {//已遍历过该面
+				is_ending = true;
+				break;
+			}
+
+
+		}
+		//跳转下个面上的第一条边
 
 	} while (!is_ending);
 }
