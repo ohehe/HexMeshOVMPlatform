@@ -117,12 +117,23 @@ int BaseComplexSetFiller::SFaceSetSeeking(bool is_support_halfface) {
 	}
 	return count_sface;
 }
+//判断是否面在边界上
+bool Check_On_Bdy(HexMeshV3f *mesh,HalfFaceHandle hf_handle) {
+	std::pair<OpenVolumeMesh::HalfFaceVertexIter, OpenVolumeMesh::HalfFaceVertexIter> hf_v_pair = mesh->halfface_vertices(hf_handle);
+	for (OpenVolumeMesh::HalfFaceVertexIter hf_v_iter = hf_v_pair.first; hf_v_iter != hf_v_pair.second; ++hf_v_iter) {
+		if (!mesh->is_boundary(*hf_v_iter)) {
+			return false;
+		}
+	}
+	return true; 
+}
+
 //******************************************
 //1.对所有奇异边的邻接面延伸。
 //	(1)保存能延伸到另一条奇异边的分割面部分,保存该奇异边集合。
 //  (2)保存能直接延伸到边界且不与当前分割面集合相交的分割面部分，保存该奇异边集合。
 //	(3)处理剩下的延伸面，到达当前分割面集合中单元停止，保存入分割面集合。
-int BaseComplexSetFiller::SFaceSetSeeking_Complex(bool is_support_halfface,const std::vector<SingularEdge>& vector_se) {
+int BaseComplexSetFiller::SFaceSetSeeking_Complex(bool is_support_halfface, const std::vector<SingularEdge>& vector_se) {
 	uint64_t count_step_direct = 0u;
 	uint64_t count_step_to_bdy = 0u;
 	uint64_t count_step_to_existing_sf = 0u;
@@ -130,23 +141,41 @@ int BaseComplexSetFiller::SFaceSetSeeking_Complex(bool is_support_halfface,const
 	//获取标记
 	OpenVolumeMesh::EdgePropertyT<int> intEProp_sigular = this->mesh->request_edge_property<int>("SingularEdgeIndex");
 
-	//TODO:step-1
-	std::pair<OpenVolumeMesh::HalfEdgeIter, OpenVolumeMesh::HalfEdgeIter> he_pair = mesh->halfedges();
-	for (OpenVolumeMesh::HalfEdgeIter he_iter = he_pair.first; he_iter != he_pair.second; ++he_iter) {
-		if (!intEProp_sigular[mesh->edge_handle(*he_iter)]) {//非奇异边跳过
-			continue;
-		}
-		//对奇异边延伸面处理
-		std::pair<OpenVolumeMesh::HalfEdgeHalfFaceIter, OpenVolumeMesh::HalfEdgeHalfFaceIter> he_hf_pair = mesh->halfedge_halffaces(*he_iter);
-		for (OpenVolumeMesh::HalfEdgeHalfFaceIter he_hf_iter = he_hf_pair.first; he_hf_iter != he_hf_pair.second; ++he_hf_iter) {
-			if()
-			count_step_direct += GetSFaceExtend_Simple(*he_iter, *he_hf_iter, intEProp_sigular);
-		}
-	}
-	//TODO:step-2 对不同的模式再跑两次
+	//TODO:内部环形边要怎么处理
 
+	//TODO:step-1
+	//TODO:step-2
 	//TODO:step-3
-	return 0;
+	std::pair<OpenVolumeMesh::HalfEdgeIter, OpenVolumeMesh::HalfEdgeIter> he_pair = mesh->halfedges();
+	Extend_Pattern ex_arr[3] = { Extend_Pattern::E_TO_E,Extend_Pattern::E_TO_BDY,Extend_Pattern::E_TO_F };
+	std::set<FaceHandle, compare_OVM> parting_planes_set;
+	std::set<EdgeHandle, compare_OVM> edge_in_face_set;
+	for (uint16_t step_i = 0; step_i < 3; ++step_i)
+		for (OpenVolumeMesh::HalfEdgeIter he_iter = he_pair.first; he_iter != he_pair.second; ++he_iter) {
+			if (!intEProp_sigular[mesh->edge_handle(*he_iter)]) {//非奇异边跳过
+				continue;
+			}
+			//对奇异边延伸面处理
+			std::pair<OpenVolumeMesh::HalfEdgeHalfFaceIter, OpenVolumeMesh::HalfEdgeHalfFaceIter> he_hf_pair = mesh->halfedge_halffaces(*he_iter);
+			for (OpenVolumeMesh::HalfEdgeHalfFaceIter he_hf_iter = he_hf_pair.first; he_hf_iter != he_hf_pair.second; ++he_hf_iter) {
+				//跳过在边界上的面
+				if (Check_On_Bdy(mesh, *he_hf_iter)) {
+					continue;
+				}
+				if (step_i == 0) {
+					count_step_direct += GetSFaceExtend_Complex(ex_arr[step_i], *he_iter, *he_hf_iter, intEProp_sigular, parting_planes_set, edge_in_face_set).first;
+				}
+				else if (step_i == 1) {
+					count_step_to_bdy += GetSFaceExtend_Complex(ex_arr[step_i], *he_iter, *he_hf_iter, intEProp_sigular, parting_planes_set, edge_in_face_set).first;
+				}
+				else {
+					count_step_to_existing_sf += GetSFaceExtend_Complex(ex_arr[step_i], *he_iter, *he_hf_iter, intEProp_sigular, parting_planes_set, edge_in_face_set).first;
+				}
+			}
+		}
+	f_all_set.swap(parting_planes_set);
+	for()
+	return count_step_direct+ count_step_to_bdy+ count_step_to_existing_sf;
 }
 
 //*****************************
@@ -165,7 +194,7 @@ std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Ext
 	//为奇异边到奇异边的情况的暂存集合
 	std::set<FaceHandle, compare_OVM> planes_set_E_TO_;
 	
-	
+	uint64_t count_face = 1;
 	
 	do{
 		
@@ -174,10 +203,9 @@ std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Ext
 
 		now_edge_handle = mesh->edge_handle(now_he_handle);
 		now_edge_real = mesh->edge(now_edge_handle);
-		//判断终止情况 (到达边界)
 		
 
-		//判断当前面是否遍历过 遍历过终止(存储之前的集合)
+		//判断当前面是否遍历过 遍历过终止面在边界终止(存储之前的集合)
 		if (parting_planes_set.find(mesh->face_handle(now_hf_handle)) != parting_planes_set.end()) {
 			for (std::set<FaceHandle, compare_OVM>::iterator f_iter = planes_set_E_TO_.begin(); f_iter != planes_set_E_TO_.end(); ++f_iter) {
 				parting_planes_set.insert(*f_iter);
@@ -186,6 +214,7 @@ std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Ext
 					edge_in_face_set.insert(mesh->edge_handle(*c_hf_iter));
 				}
 			}
+			--count_face;
 			is_ending = true;
 			break;
 		}
@@ -194,6 +223,7 @@ std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Ext
 			
 			if (intEProp_sigular[now_edge_handle]) {//到达奇异边
 				//对之前暂存集合装填到分割面集合
+				planes_set_E_TO_.insert(mesh->face_handle(now_hf_handle));
 				for (std::set<FaceHandle, compare_OVM>::iterator f_iter = planes_set_E_TO_.begin(); f_iter != planes_set_E_TO_.end(); ++f_iter) {
 					parting_planes_set.insert(*f_iter);
 					const std::vector<HalfEdgeHandle> c_f_handle_vector = mesh->face(*f_iter).halfedges();
@@ -204,12 +234,6 @@ std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Ext
 				
 				is_ending = true;
 			}else if (mesh->is_boundary(now_edge_real.from_vertex()) && mesh->is_boundary(now_edge_real.to_vertex())) {//先到达边界，清空暂存集合
-
-				//判断当前面是否遍历过 遍历过终止(存储之前的集合)
-				if (parting_planes_set.find(mesh->face_handle(now_hf_handle)) != parting_planes_set.end()) {
-					is_ending = true;
-					break;
-				}
 
 				planes_set_E_TO_.swap(std::set<FaceHandle, compare_OVM>());
 
@@ -226,24 +250,73 @@ std::pair<uint32_t, EdgeHandle> BaseComplexSetFiller::GetSFaceExtend_Complex(Ext
 			
 
 			if (mesh->is_boundary(now_edge_real.from_vertex()) && mesh->is_boundary(now_edge_real.to_vertex())) {//先到达边界
+				//填充单元
+				for (std::set<FaceHandle, compare_OVM>::iterator f_iter = planes_set_E_TO_.begin(); f_iter != planes_set_E_TO_.end(); ++f_iter) {
+					parting_planes_set.insert(*f_iter);
+					const std::vector<HalfEdgeHandle> c_f_handle_vector = mesh->face(*f_iter).halfedges();
+					for (std::vector<HalfEdgeHandle>::const_iterator c_hf_iter = c_f_handle_vector.begin(); c_hf_iter != c_f_handle_vector.end(); ++c_hf_iter) {
+						edge_in_face_set.insert(mesh->edge_handle(*c_hf_iter));
+					}
+				}
 				is_ending = true;
 			}
-			else if(edge_in_face_set.find()){//先到达分割面
-
+			else if(edge_in_face_set.find(now_edge_handle)!=edge_in_face_set.end()){//先到达分割面
+				planes_set_E_TO_.swap(std::set<FaceHandle, compare_OVM>());
+				is_ending = true;
+			}
+			else {//既未到达边界也未到达分割面
+				planes_set_E_TO_.insert(mesh->face_handle(now_hf_handle));
 			}
 			
 		}
 		else if (ex_p == Extend_Pattern::E_TO_F) {//到达另一条分割面
-			if (edge_in_face_set.find(now_edge_handle) != edge_in_face_set.end()) {//已遍历过该面
+			if (edge_in_face_set.find(now_edge_handle) != edge_in_face_set.end()) {//先到达分割面
+				planes_set_E_TO_.insert(mesh->face_handle(now_hf_handle));
+				for (std::set<FaceHandle, compare_OVM>::iterator f_iter = planes_set_E_TO_.begin(); f_iter != planes_set_E_TO_.end(); ++f_iter) {
+					parting_planes_set.insert(*f_iter);
+					const std::vector<HalfEdgeHandle> c_f_handle_vector = mesh->face(*f_iter).halfedges();
+					for (std::vector<HalfEdgeHandle>::const_iterator c_hf_iter = c_f_handle_vector.begin(); c_hf_iter != c_f_handle_vector.end(); ++c_hf_iter) {
+						edge_in_face_set.insert(mesh->edge_handle(*c_hf_iter));
+					}
+				}
 				is_ending = true;
-				break;
 			}
-
+			else if (intEProp_sigular[now_edge_handle]) {//先到奇异边
+				planes_set_E_TO_.swap(std::set<FaceHandle, compare_OVM>());
+				is_ending = true;
+			}
+			else if(mesh->is_boundary(now_edge_real.from_vertex())&&mesh->is_boundary(now_edge_real.to_vertex())){//到达边界
+				planes_set_E_TO_.swap(std::set<FaceHandle, compare_OVM>());
+				is_ending = true;
+			}
+			else {
+				planes_set_E_TO_.insert(mesh->face_handle(now_hf_handle));
+			}
 
 		}
 		//跳转下个面上的第一条边
+		if (!is_ending) {
+			std::pair<OpenVolumeMesh::HalfEdgeHalfFaceIter, OpenVolumeMesh::HalfEdgeHalfFaceIter> he_hf_pair = 
+				mesh->halfedge_halffaces(now_he_handle);
+			
+			//在内部
+			int f_count = 0, index_finded = 0;
+			for (OpenVolumeMesh::HalfEdgeHalfFaceIter hehf_iter = he_hf_pair.first;
+				hehf_iter != he_hf_pair.second; ++hehf_iter, ++f_count) {
+				hf_h_temp[f_count] = *hehf_iter;
+				if (*hehf_iter == now_hf_handle) {
+					index_finded = f_count;
+				}
+			}
+			now_hf_handle = hf_h_temp[(index_finded + 2) % 4];
+			
+			++count_face;
+		}
 
 	} while (!is_ending);
+
+	//返回pair
+	return std::pair<uint32_t, EdgeHandle>(count_face,now_edge_handle);
 }
 int BaseComplexSetFiller::SFaceSetSeeking_Simple(bool is_support_halfface)
 {
